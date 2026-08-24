@@ -36,8 +36,8 @@ export function PagePreviewModal(): JSX.Element | null {
               alt=""
               style={{
                 transform: `rotate(${rotation}deg)`,
-                maxWidth: rotated ? "70vh" : "80vw",
-                maxHeight: rotated ? "80vw" : "70vh",
+                maxWidth: rotated ? "80vh" : "80vw",
+                maxHeight: rotated ? "80vw" : "80vh",
               }}
             />
           ) : (

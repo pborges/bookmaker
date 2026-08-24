@@ -1,0 +1,15 @@
+# Cloudflare terminates TLS and sends plain HTTP through the incursion.dev
+# tunnel. The platform FQDN operator derives the tunnel binding from Host().
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bookmaker
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`bookmaker.incursion.dev`)
+      kind: Rule
+      services:
+        - name: bookmaker
+          port: 80
