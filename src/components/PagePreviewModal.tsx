@@ -31,15 +31,21 @@ export function PagePreviewModal(): JSX.Element | null {
         </button>
         <div class="modal-image-wrap">
           {src ? (
-            <img
-              src={src}
-              alt=""
+            // The rotation lives on this sizing box, not the <img>: the box is
+            // pre-rotation dimensions (swapped when on its side), so once
+            // rotated its on-screen footprint is the intended 80vw/80vh — the
+            // img then just fills that box via object-fit, scaling up freely
+            // instead of being capped at the thumbnail's native raster size.
+            <div
+              class="modal-image-rotator"
               style={{
+                width: rotated ? "80vh" : "80vw",
+                height: rotated ? "80vw" : "80vh",
                 transform: `rotate(${rotation}deg)`,
-                maxWidth: rotated ? "80vh" : "80vw",
-                maxHeight: rotated ? "80vw" : "80vh",
               }}
-            />
+            >
+              <img src={src} alt="" />
+            </div>
           ) : (
             <div class="blank-half">no preview</div>
           )}
