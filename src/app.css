@@ -713,6 +713,18 @@ input[type="checkbox"] {
   margin-bottom: 0.6rem;
 }
 
+.custom-size-row {
+  justify-content: flex-start;
+  gap: 0.4rem;
+  margin-top: -0.2rem;
+  color: var(--fg-faint);
+  font-size: 0.7rem;
+}
+
+.custom-size-row input[type="number"] {
+  max-width: 4.5rem;
+}
+
 .cover-pages {
   border-left: 2px solid var(--border);
   padding-left: 0.6rem;

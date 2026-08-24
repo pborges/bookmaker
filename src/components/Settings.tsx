@@ -6,6 +6,7 @@ import {
   setCoverMode,
   setCoverPage,
   setCreep,
+  setCustomPageSize,
   setMedia,
   setPageSizePreset,
   setSewGuide,
@@ -58,9 +59,34 @@ export function Settings(): JSX.Element | null {
           ))}
         </select>
       </label>
-      <div class="settings-hint">
-        {nb.pageSize.widthMm.toFixed(1)} × {nb.pageSize.heightMm.toFixed(1)} mm
-      </div>
+      {nb.pageSizePreset === "custom" ? (
+        <div class="settings-row custom-size-row">
+          <input
+            type="number"
+            min={1}
+            step={0.1}
+            value={nb.pageSize.widthMm}
+            onInput={(e) =>
+              setCustomPageSize({ ...nb.pageSize, widthMm: Number((e.target as HTMLInputElement).value) })
+            }
+          />
+          <span>×</span>
+          <input
+            type="number"
+            min={1}
+            step={0.1}
+            value={nb.pageSize.heightMm}
+            onInput={(e) =>
+              setCustomPageSize({ ...nb.pageSize, heightMm: Number((e.target as HTMLInputElement).value) })
+            }
+          />
+          <span>mm</span>
+        </div>
+      ) : (
+        <div class="settings-hint">
+          {nb.pageSize.widthMm.toFixed(1)} × {nb.pageSize.heightMm.toFixed(1)} mm
+        </div>
+      )}
 
       <label class="settings-row">
         Media
