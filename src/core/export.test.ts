@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { buildPass, exportCover, type PlacedPage } from "./export";
+import { buildPass, computePagePlacement, exportCover, type PlacedPage } from "./export";
+import { computeSheetGeometry } from "./geometry";
 import { impose } from "./imposition";
 import { EMPTY_COVER_PAGES } from "./model";
 
@@ -76,6 +77,79 @@ describe("buildPass with a sew guide", () => {
 
     expect(withConfigNotInnermost.length).toBe(noConfig.length);
   });
+});
+
+const PT_PER_MM = 72 / 25.4;
+
+/**
+ * Independent re-implementation of what pdf-lib's drawPage actually does
+ * with (x, y, scale, rotateDeg): translate(x,y) ∘ rotate(rotateDeg, CCW) ∘
+ * scale. Used to check computePagePlacement's output geometrically instead
+ * of re-deriving (and risking re-copying the same bug into) its internals.
+ */
+function applyPlacement(p: { x: number; y: number; scale: number; rotateDeg: number }, point: { x: number; y: number }) {
+  const theta = (p.rotateDeg * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const sx = point.x * p.scale;
+  const sy = point.y * p.scale;
+  return {
+    x: p.x + (sx * cos - sy * sin),
+    y: p.y + (sx * sin + sy * cos),
+  };
+}
+
+describe("computePagePlacement", () => {
+  // A 200x300pt portrait source, placed into the fieldNotes-with-3mm-margin
+  // "right" half of a precut sheet (matches buildPass's real geometry).
+  const box = { minX: 0, minY: 0, maxX: 200, maxY: 300 };
+  const geo = computeSheetGeometry({ mode: "precut" }, fieldNotes, 3);
+  const pageHeightPt = fieldNotes.heightMm * PT_PER_MM;
+
+  it("matches a hand-computed placement for a 90° clockwise rotation", () => {
+    // Derived by hand: scale = min(targetW/srcHeight, targetH/srcWidth),
+    // pivot = box's bottom-right corner (the one that lands at the target's
+    // bottom-left after a 90° CW turn), rotated+scaled before subtracting.
+    const placement = computePagePlacement(geo.right, box, 90, pageHeightPt);
+    expect(placement.scale).toBeCloseTo(0.8117, 3);
+    expect(placement.rotateDeg).toBe(270); // pdf-lib rotates CCW; 90° CW == 270° CCW
+    expect(placement.x).toBeCloseTo(252.04, 1);
+    expect(placement.y).toBeCloseTo(279.18, 1);
+  });
+
+  it.each([0, 90, 180, 270] as const)(
+    "fits the rotated box exactly inside the target rect at rotation %i°",
+    (rotationDeg) => {
+      const rect = geo.right;
+      const placement = computePagePlacement(rect, box, rotationDeg, pageHeightPt);
+
+      const corners = [
+        { x: box.minX, y: box.minY },
+        { x: box.maxX, y: box.minY },
+        { x: box.minX, y: box.maxY },
+        { x: box.maxX, y: box.maxY },
+      ].map((c) => applyPlacement(placement, c));
+
+      const xs = corners.map((c) => c.x);
+      const ys = corners.map((c) => c.y);
+      const targetWidthPt = rect.width * PT_PER_MM;
+      const targetHeightPt = rect.height * PT_PER_MM;
+      const targetXPt = rect.x * PT_PER_MM;
+      // rect.y is 0 for both halves in precut mode, so the target's bottom
+      // edge in pdf-lib's y-up space is pageHeightPt - targetHeightPt.
+      const targetYPt = pageHeightPt - rect.y * PT_PER_MM - targetHeightPt;
+
+      const rotated = rotationDeg === 90 || rotationDeg === 270;
+      const expectedBoxWidth = (rotated ? box.maxY - box.minY : box.maxX - box.minX) * placement.scale;
+      const expectedBoxHeight = (rotated ? box.maxX - box.minX : box.maxY - box.minY) * placement.scale;
+
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(expectedBoxWidth, 1);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(expectedBoxHeight, 1);
+      // Centred within the target rect, not just somewhere within it.
+      expect(Math.min(...xs) - targetXPt).toBeCloseTo(targetXPt + targetWidthPt - Math.max(...xs), 1);
+      expect(Math.min(...ys) - targetYPt).toBeCloseTo(targetYPt + targetHeightPt - Math.max(...ys), 1);
+    },
+  );
 });
 
 describe("buildPass with a rotated page", () => {

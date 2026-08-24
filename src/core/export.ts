@@ -122,23 +122,39 @@ function drawSewGuide(
   }
 }
 
+export interface PagePlacement {
+  x: number;
+  y: number;
+  scale: number;
+  /** CCW degrees, as pdf-lib's `rotate` expects — see computePagePlacement. */
+  rotateDeg: number;
+}
+
 /**
- * Places an embedded source page into `rect`, scaled to fit and centred, with
- * an optional clockwise rotation applied first. `pdf-lib`'s `drawPage`
- * rotates around the (x, y) point passed to it, in the same
- * translate → rotate → scale order every time — so the source-space point
- * that must land at that pivot changes with the rotation (see the corner
- * table below). Working through the four cases by hand for a unit box is the
- * easiest way to have confidence in the offsets.
+ * Computes where to place an embedded source page (pdf-lib's `drawPage` x/y/
+ * scale/rotate) so it fits centred in `rect`, rotated by `rotationDeg`
+ * clockwise first. Pure and independently testable on purpose: this is
+ * exactly the kind of geometry that looks right at rotation 0 and is silently
+ * wrong everywhere else, so it needs numeric regression coverage, not just a
+ * "did it throw" test.
+ *
+ * pdf-lib's `drawPage` composes translate(x,y) → rotate(θ) → scale in that
+ * order, and `rotate` turns counter-clockwise for positive θ — while
+ * `rotationDeg` here is clockwise, matching the CSS `rotate()` the on-screen
+ * preview uses. Two things fall out of that:
+ *  - a "90° clockwise" request is θ=270° as far as pdf-lib's matrix is
+ *    concerned (ccwDeg below), and
+ *  - the source-space corner that must land at the target's bottom-left
+ *    moves as θ changes, and that pivot has to be *scaled and rotated*
+ *    before subtracting it back out of the target point — subtracting the
+ *    unrotated pivot only happens to work at θ=0.
  */
-function drawEmbeddedPage(
-  outPage: import("pdf-lib").PDFPage,
-  embedded: Awaited<ReturnType<PDFDocument["embedPdf"]>>[number],
+export function computePagePlacement(
   rect: Rect,
-  cropBoxPt: { minX: number; minY: number; maxX: number; maxY: number } | undefined,
+  box: { minX: number; minY: number; maxX: number; maxY: number },
   rotationDeg: PageRotation,
-): void {
-  const box = cropBoxPt ?? { minX: 0, minY: 0, maxX: embedded.width, maxY: embedded.height };
+  pageHeightPt: number,
+): PagePlacement {
   const srcWidth = box.maxX - box.minX;
   const srcHeight = box.maxY - box.minY;
   const rotated = rotationDeg === 90 || rotationDeg === 270;
@@ -156,26 +172,55 @@ function drawEmbeddedPage(
 
   // pdf-lib's y axis grows upward from the bottom; our rects use a top-left
   // origin in mm, so flip.
-  const pageHeightPt = outPage.getHeight();
   const targetX = mmToPt(rect.x) + offsetX;
   const targetY = pageHeightPt - mmToPt(rect.y) - targetHeightPt + offsetY;
 
-  // The source-space corner that rotates onto the target box's bottom-left.
+  const ccwDeg = (360 - rotationDeg) % 360;
+
+  // The source-space corner that rotates onto the target box's bottom-left,
+  // derived by rotating a unit box CCW by ccwDeg and finding which corner
+  // lands at the new bottom-left.
   const pivot =
-    rotationDeg === 90
+    ccwDeg === 90
       ? { x: box.minX, y: box.maxY }
-      : rotationDeg === 180
+      : ccwDeg === 180
         ? { x: box.maxX, y: box.maxY }
-        : rotationDeg === 270
+        : ccwDeg === 270
           ? { x: box.maxX, y: box.minY }
           : { x: box.minX, y: box.minY };
 
+  const theta = (ccwDeg * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const scaledPivotX = pivot.x * scale;
+  const scaledPivotY = pivot.y * scale;
+  const rotatedPivotX = scaledPivotX * cos - scaledPivotY * sin;
+  const rotatedPivotY = scaledPivotX * sin + scaledPivotY * cos;
+
+  return {
+    x: targetX - rotatedPivotX,
+    y: targetY - rotatedPivotY,
+    scale,
+    rotateDeg: ccwDeg,
+  };
+}
+
+function drawEmbeddedPage(
+  outPage: import("pdf-lib").PDFPage,
+  embedded: Awaited<ReturnType<PDFDocument["embedPdf"]>>[number],
+  rect: Rect,
+  cropBoxPt: { minX: number; minY: number; maxX: number; maxY: number } | undefined,
+  rotationDeg: PageRotation,
+): void {
+  const box = cropBoxPt ?? { minX: 0, minY: 0, maxX: embedded.width, maxY: embedded.height };
+  const placement = computePagePlacement(rect, box, rotationDeg, outPage.getHeight());
+
   outPage.drawPage(embedded, {
-    x: targetX - pivot.x * scale,
-    y: targetY - pivot.y * scale,
-    xScale: scale,
-    yScale: scale,
-    rotate: degrees(rotationDeg),
+    x: placement.x,
+    y: placement.y,
+    xScale: placement.scale,
+    yScale: placement.scale,
+    rotate: degrees(placement.rotateDeg),
   });
 }
 
