@@ -2,7 +2,8 @@
 // size, and a page's crop box, compute where each half's page box sits on
 // the physical sheet, in millimetres with origin at the sheet's top-left.
 
-import type { Media, Size } from "./model";
+import type { Sheet } from "./imposition";
+import type { Media, SewGuide, Size } from "./model";
 
 export interface Rect {
   x: number;
@@ -104,4 +105,16 @@ export function sewStationOffsets(trimmedHeightMm: number, stations: 0 | 3 | 5):
   if (stations === 0) return [];
   if (stations === 3) return [h / 2 - h / 4, h / 2, h / 2 + h / 4];
   return [h / 2 - h / 3, h / 2 - h / 6, h / 2, h / 2 + h / 6, h / 2 + h / 3];
+}
+
+/**
+ * Whether this sheet/side should carry the sew guide, per PLAN.md §5. Shared
+ * between the sheet-view preview and the PDF export so they never drift.
+ */
+export function showsSewGuide(sewGuide: SewGuide, sheet: Sheet, side: "front" | "back", sheetCount: number): boolean {
+  if (sewGuide.line === "none") return false;
+  if (sewGuide.line === "all") return true;
+  // 'innermost': the spread facing you when the folded block is opened to
+  // its centre — sheet S-1, back side.
+  return side === "back" && sheet.index === sheetCount - 1;
 }

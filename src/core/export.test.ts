@@ -41,6 +41,43 @@ describe("exportCover", () => {
   });
 });
 
+describe("buildPass with a sew guide", () => {
+  it("draws the dashed fold line and station dots when enabled", async () => {
+    const sheets = impose(4); // single sheet, so it's always the innermost
+    const lookup = (): PlacedPage => ({ bookPageNumber: null });
+
+    const withGuide = await buildPass(sheets, (s) => s.back, { mode: "precut" }, fieldNotes, 3, lookup, 0, [0], {
+      sewGuide: { line: "innermost", stations: 3 },
+      side: "back",
+    });
+    const withoutGuide = await buildPass(sheets, (s) => s.back, { mode: "precut" }, fieldNotes, 3, lookup, 0, [0]);
+
+    // Both pages are otherwise empty (blank lookup), so extra bytes on the
+    // "withGuide" pass can only be the guide's line and station-dot draws.
+    expect(withGuide.length).toBeGreaterThan(withoutGuide.length);
+  });
+
+  it("does not draw on a sheet that isn't the innermost one under 'innermost'", async () => {
+    const sheets = impose(8); // two sheets; sheet 0 is not innermost
+    const lookup = (): PlacedPage => ({ bookPageNumber: null });
+
+    const withConfigNotInnermost = await buildPass(
+      sheets,
+      (s) => s.back,
+      { mode: "precut" },
+      fieldNotes,
+      3,
+      lookup,
+      0,
+      [0],
+      { sewGuide: { line: "innermost", stations: 3 }, side: "back" },
+    );
+    const noConfig = await buildPass(sheets, (s) => s.back, { mode: "precut" }, fieldNotes, 3, lookup, 0, [0]);
+
+    expect(withConfigNotInnermost.length).toBe(noConfig.length);
+  });
+});
+
 describe("buildPass with a rotated page", () => {
   it("places a 90°-rotated landscape source page without throwing, at the expected sheet size", async () => {
     const sourceBytes = await makeSourcePdf(1);

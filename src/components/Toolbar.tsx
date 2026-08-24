@@ -118,7 +118,7 @@ export function Toolbar(): JSX.Element {
       const backsPlan = resolveBacksPlan(
         profile ? { outputFacing: profile.outputFacing, reloadFlip: profile.reloadFlip } : { outputFacing: "down", reloadFlip: "long" },
       );
-      const result = await exportBooklet(s, nb.media, nb.pageSize, nb.bindingMarginMm, lookup, backsPlan);
+      const result = await exportBooklet(s, nb.media, nb.pageSize, nb.bindingMarginMm, lookup, backsPlan, nb.sewGuide);
 
       let coverUrl: string | null = null;
       if (nb.coverMode === "separate-wrap") {
@@ -215,7 +215,7 @@ export function Toolbar(): JSX.Element {
           </label>
           <span class="source-count">{Object.keys(sources.value).length} source(s)</span>
           <button class="btn-primary" onClick={onExport} disabled={exporting || sheets.value.length === 0}>
-            {exporting ? "Exporting…" : "Print"}
+            {exporting ? "Generating…" : "Generate"}
           </button>
           {exportUrls && (
             <span class="export-links">

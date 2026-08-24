@@ -1,10 +1,10 @@
 // Builds the print-ready Fronts/Backs PDFs with pdf-lib, using the same
 // geometry math the sheet-view UI uses to preview placement.
 
-import { PDFDocument, degrees } from "pdf-lib";
-import { computeSheetGeometry, type Rect } from "./geometry";
+import { PDFDocument, degrees, rgb } from "pdf-lib";
+import { computeSheetGeometry, sewStationOffsets, showsSewGuide, type Rect } from "./geometry";
 import { impose, type Sheet } from "./imposition";
-import type { CoverPageRef, CoverPages, Media, Size } from "./model";
+import type { CoverPageRef, CoverPages, Media, SewGuide, Size } from "./model";
 import type { PageRotation } from "./pages";
 import { orderedBackIndices, type BacksPlan } from "./printerProfile";
 
@@ -25,6 +25,11 @@ export interface PlacedPage {
 
 export type PageLookup = (bookPageNumber: number) => PlacedPage;
 
+export interface SewGuidePassConfig {
+  sewGuide: SewGuide;
+  side: "front" | "back";
+}
+
 export async function buildPass(
   sheets: Sheet[],
   sheetSides: (sheet: Sheet) => { left: number; right: number },
@@ -34,6 +39,7 @@ export async function buildPass(
   lookup: PageLookup,
   rotationDeg: 0 | 180,
   sheetOrder: number[],
+  sewGuideConfig?: SewGuidePassConfig,
 ): Promise<Uint8Array> {
   const out = await PDFDocument.create();
   const geo = computeSheetGeometry(media, pageSize, bindingMarginMm);
@@ -66,12 +72,54 @@ export async function buildPass(
       drawEmbeddedPage(outPage, embedded, rect, placed.cropBoxPt, placed.pageRotationDeg ?? 0);
     }
 
+    if (sewGuideConfig && showsSewGuide(sewGuideConfig.sewGuide, sheet, sewGuideConfig.side, sheets.length)) {
+      drawSewGuide(outPage, geo.foldX, geo.left.y, pageSize.heightMm, sewGuideConfig.sewGuide.stations);
+    }
+
     if (rotationDeg === 180) {
       outPage.setRotation(degrees(180));
     }
   }
 
   return out.save();
+}
+
+/**
+ * Draws the dotted pamphlet-stitch guide down the centre fold, with heavier
+ * dots at the station marks. Spans exactly the trimmed page height so it
+ * never runs into the trim area (PLAN.md §5).
+ */
+function drawSewGuide(
+  outPage: import("pdf-lib").PDFPage,
+  foldXMm: number,
+  pageTopYMm: number,
+  trimmedHeightMm: number,
+  stations: 0 | 3 | 5,
+): void {
+  const pageHeightPt = outPage.getHeight();
+  const xPt = mmToPt(foldXMm);
+  const topPt = pageHeightPt - mmToPt(pageTopYMm);
+  const bottomPt = pageHeightPt - mmToPt(pageTopYMm + trimmedHeightMm);
+  const guideColor = rgb(0.6, 0.6, 0.6);
+
+  outPage.drawLine({
+    start: { x: xPt, y: topPt },
+    end: { x: xPt, y: bottomPt },
+    thickness: 0.75,
+    color: guideColor,
+    dashArray: [1.5, 2.5],
+    opacity: 0.85,
+  });
+
+  for (const offsetMm of sewStationOffsets(trimmedHeightMm, stations)) {
+    outPage.drawCircle({
+      x: xPt,
+      y: pageHeightPt - mmToPt(pageTopYMm + offsetMm),
+      size: mmToPt(0.6),
+      color: guideColor,
+      opacity: 0.9,
+    });
+  }
 }
 
 /**
@@ -143,11 +191,15 @@ export async function exportBooklet(
   bindingMarginMm: number,
   lookup: PageLookup,
   backsPlan: BacksPlan,
+  sewGuide: SewGuide,
 ): Promise<ExportResult> {
   const forwardOrder = sheets.map((_, i) => i);
   const backOrder = orderedBackIndices(sheets.length, backsPlan.order);
 
-  const frontsPdf = await buildPass(sheets, (s) => s.front, media, pageSize, bindingMarginMm, lookup, 0, forwardOrder);
+  const frontsPdf = await buildPass(sheets, (s) => s.front, media, pageSize, bindingMarginMm, lookup, 0, forwardOrder, {
+    sewGuide,
+    side: "front",
+  });
   const backsPdf = await buildPass(
     sheets,
     (s) => s.back,
@@ -157,6 +209,7 @@ export async function exportBooklet(
     lookup,
     backsPlan.rotationDeg,
     backOrder,
+    { sewGuide, side: "back" },
   );
 
   return { frontsPdf, backsPdf };

@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { sewStationOffsets } from "../core/geometry";
+import { sewStationOffsets, showsSewGuide } from "../core/geometry";
 import type { Sheet } from "../core/imposition";
 import type { SewGuide } from "../core/model";
 import { activeNotebook, openPreview, resolvedPageList, sheets, thumbnailUrls } from "../store";
@@ -41,15 +41,6 @@ function SheetHalf({ items, pageNumber }: { items: BookItem[]; pageNumber: numbe
       <span class="page-number">{pageNumber}</span>
     </div>
   );
-}
-
-/** Whether this sheet/side should carry the sew guide, per PLAN.md §5. */
-function showsSewGuide(sewGuide: SewGuide, sheet: Sheet, side: "front" | "back", sheetCount: number): boolean {
-  if (sewGuide.line === "none") return false;
-  if (sewGuide.line === "all") return true;
-  // 'innermost': the spread facing you when the folded block is opened to
-  // its centre — sheet S-1, back side.
-  return side === "back" && sheet.index === sheetCount - 1;
 }
 
 function SewGuideOverlay({ stations, heightMm }: { stations: 0 | 3 | 5; heightMm: number }): JSX.Element {
