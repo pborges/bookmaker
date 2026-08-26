@@ -31,10 +31,10 @@ function valueToCoverRef(value: string): CoverPageRef | null {
 }
 
 const PRESET_LABELS: Record<PageSizePreset, string> = {
-  fieldnotes: "Field Notes 3.5×5.5in",
-  a6: "A6 10×14cm",
-  halfletter: "Half-Letter 5.5×8.5in",
-  a5: "A5",
+  fieldnotes: "Field Notes 88.9 × 139.7 mm",
+  a6: "A6 105 × 148 mm",
+  halfletter: "Half-Letter 139.7 × 215.9 mm",
+  a5: "A5 148 × 210 mm",
   custom: "Custom",
 };
 

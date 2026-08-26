@@ -3,10 +3,10 @@
 // thumbnail, ink crop box, and readability estimate from that single raster.
 
 import * as pdfjsLib from "pdfjs-dist";
-import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+import PdfJsWorker from "pdfjs-dist/build/pdf.worker.mjs?worker";
 import { dominantInkRunHeight, inkBoundingBox, padBBox, type BBox } from "./raster";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker();
 
 const THUMBNAIL_MAX_DIM = 400;
 const CROP_PADDING_PX = 4;
