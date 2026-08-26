@@ -212,6 +212,9 @@ export function Toolbar(): JSX.Element {
               value={nb.targetPageCount}
               onInput={(e) => setTargetPageCount(Number((e.target as HTMLInputElement).value))}
             />
+            <span>
+              ({Math.ceil(nb.targetPageCount / 4)} {Math.ceil(nb.targetPageCount / 4) === 1 ? "sheet" : "sheets"})
+            </span>
           </label>
           <span class="source-count">{Object.keys(sources.value).length} source(s)</span>
           <button class="btn-primary" onClick={onExport} disabled={exporting || sheets.value.length === 0}>
