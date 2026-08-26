@@ -116,7 +116,7 @@ export function Toolbar(): JSX.Element {
       // Without a calibrated profile, default to a forward, unrotated pass.
       const profile = activePrinterProfile.value;
       const backsPlan = resolveBacksPlan(
-        profile ? { outputFacing: profile.outputFacing, reloadFlip: profile.reloadFlip } : { outputFacing: "down", reloadFlip: "long" },
+        profile ?? { outputFacing: "down", reloadFlip: "long", backsOrder: "reversed", backsRotationDeg: 180 },
       );
       const result = await exportBooklet(s, nb.media, nb.pageSize, nb.bindingMarginMm, lookup, backsPlan, nb.sewGuide);
 

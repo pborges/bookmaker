@@ -20,13 +20,22 @@ export function saveState(state: PersistedState): void {
 // version match, since a field can be added without bumping the version
 // during development, and old stored records must not crash a fresh load.
 function migrate(state: PersistedState): PersistedState {
+  const notebooks = (state.notebooks ?? []).map((nb) => ({
+    ...nb,
+    coverPages: nb.coverPages ?? { ...EMPTY_COVER_PAGES },
+  }));
+  const printerProfiles = state.printerProfiles ?? [];
+  const legacyProfileId = notebooks.find((nb) => nb.printerProfileId)?.printerProfileId;
+  const requestedProfileId = state.activePrinterProfileId ?? legacyProfileId;
+  const activePrinterProfileId = printerProfiles.some((profile) => profile.id === requestedProfileId)
+    ? requestedProfileId
+    : undefined;
+
   return {
     schemaVersion: SCHEMA_VERSION,
-    notebooks: (state.notebooks ?? []).map((nb) => ({
-      ...nb,
-      coverPages: nb.coverPages ?? { ...EMPTY_COVER_PAGES },
-    })),
-    printerProfiles: state.printerProfiles ?? [],
+    notebooks,
+    printerProfiles,
+    activePrinterProfileId,
     sources: state.sources ?? {},
   };
 }

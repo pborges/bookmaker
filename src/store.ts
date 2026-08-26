@@ -3,6 +3,7 @@ import { getPdfBytes, getThumbnail, putPdfBytes, putThumbnail, thumbnailKey } fr
 import {
   createEmptyNotebook,
   PAGE_SIZE_PRESETS,
+  SCHEMA_VERSION,
   type CoverMode,
   type CoverPageRef,
   type CoverPages,
@@ -27,6 +28,7 @@ const persisted = loadState();
 export const notebooks = signal<Notebook[]>(persisted.notebooks);
 export const sources = signal<Record<string, Source>>(persisted.sources);
 export const printerProfiles = signal<PrinterProfile[]>(persisted.printerProfiles);
+export const activePrinterProfileId = signal<string | null>(persisted.activePrinterProfileId ?? null);
 export const activeNotebookId = signal<string | null>(persisted.notebooks[0]?.id ?? null);
 export const thumbnailUrls = signal<Record<string, string>>({});
 
@@ -39,9 +41,10 @@ export const lastImportSummary = signal<ReadabilitySummary | null>(null);
 
 function persist(): void {
   saveState({
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     notebooks: notebooks.value,
     printerProfiles: printerProfiles.value,
+    activePrinterProfileId: activePrinterProfileId.value ?? undefined,
     sources: sources.value,
   });
 }
@@ -365,26 +368,51 @@ export function createPrinterProfile(
   outputFacing: PrinterProfile["outputFacing"],
   reloadFlip: PrinterProfile["reloadFlip"],
 ): PrinterProfile {
-  const profile: PrinterProfile = { id: id(), name, outputFacing, reloadFlip };
+  const profile: PrinterProfile = {
+    id: id(),
+    name,
+    outputFacing,
+    reloadFlip,
+    backsOrder: "reversed",
+    backsRotationDeg: 180,
+  };
   printerProfiles.value = [...printerProfiles.value, profile];
   persist();
   return profile;
 }
 
+export function setPrinterProfileBacksOrder(
+  profileId: string,
+  backsOrder: NonNullable<PrinterProfile["backsOrder"]>,
+): void {
+  printerProfiles.value = printerProfiles.value.map((profile) =>
+    profile.id === profileId ? { ...profile, backsOrder } : profile,
+  );
+  persist();
+}
+
+export function setPrinterProfileBacksRotation(profileId: string, backsRotationDeg: 0 | 180): void {
+  printerProfiles.value = printerProfiles.value.map((profile) =>
+    profile.id === profileId ? { ...profile, backsRotationDeg } : profile,
+  );
+  persist();
+}
+
 export function deletePrinterProfile(profileId: string): void {
   printerProfiles.value = printerProfiles.value.filter((p) => p.id !== profileId);
+  if (activePrinterProfileId.value === profileId) activePrinterProfileId.value = null;
   notebooks.value = notebooks.value.map((n) =>
     n.printerProfileId === profileId ? { ...n, printerProfileId: undefined } : n,
   );
   persist();
 }
 
-export function setNotebookPrinterProfile(profileId: string | undefined): void {
-  updateActiveNotebook((nb) => ({ ...nb, printerProfileId: profileId }));
+export function setActivePrinterProfile(profileId: string | undefined): void {
+  activePrinterProfileId.value = profileId ?? null;
+  persist();
 }
 
 export const activePrinterProfile = computed<PrinterProfile | null>(() => {
-  const nb = activeNotebook.value;
-  if (!nb?.printerProfileId) return null;
-  return printerProfiles.value.find((p) => p.id === nb.printerProfileId) ?? null;
+  if (!activePrinterProfileId.value) return null;
+  return printerProfiles.value.find((profile) => profile.id === activePrinterProfileId.value) ?? null;
 });

@@ -2,15 +2,37 @@ import { describe, expect, it } from "vitest";
 import { orderedBackIndices, resolveBacksPlan } from "./printerProfile";
 
 describe("resolveBacksPlan", () => {
-  it("covers all four facing/flip combinations distinctly", () => {
-    const plans = [
-      resolveBacksPlan({ outputFacing: "down", reloadFlip: "long" }),
-      resolveBacksPlan({ outputFacing: "down", reloadFlip: "short" }),
-      resolveBacksPlan({ outputFacing: "up", reloadFlip: "long" }),
-      resolveBacksPlan({ outputFacing: "up", reloadFlip: "short" }),
-    ];
-    const serialized = plans.map((p) => `${p.order}:${p.rotationDeg}`);
-    expect(new Set(serialized).size).toBe(4);
+  it("defaults to reversed order and 180° rotation", () => {
+    expect(resolveBacksPlan({ outputFacing: "down", reloadFlip: "long" })).toEqual({
+      order: "reversed",
+      rotationDeg: 180,
+    });
+    expect(resolveBacksPlan({ outputFacing: "up", reloadFlip: "short" })).toEqual({
+      order: "reversed",
+      rotationDeg: 180,
+    });
+  });
+
+  it("overrides sheet order without changing rotation", () => {
+    expect(resolveBacksPlan({ outputFacing: "down", reloadFlip: "long", backsOrder: "reversed" })).toEqual({
+      order: "reversed",
+      rotationDeg: 180,
+    });
+    expect(resolveBacksPlan({ outputFacing: "up", reloadFlip: "short", backsOrder: "forward" })).toEqual({
+      order: "forward",
+      rotationDeg: 180,
+    });
+  });
+
+  it("overrides rotation without changing sheet order", () => {
+    expect(
+      resolveBacksPlan({
+        outputFacing: "down",
+        reloadFlip: "short",
+        backsOrder: "reversed",
+        backsRotationDeg: 0,
+      }),
+    ).toEqual({ order: "reversed", rotationDeg: 0 });
   });
 });
 

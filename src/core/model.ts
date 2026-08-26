@@ -65,6 +65,12 @@ export interface PrinterProfile {
   name: string;
   outputFacing: "up" | "down";
   reloadFlip: "long" | "short";
+  /** Explicit override for how the Backs PDF is ordered. Older profiles omit
+   * this and use the default reversed order. */
+  backsOrder?: "forward" | "reversed";
+  /** Explicit override for whole-sheet Backs rotation. Older profiles infer
+   * this from the calibrated reload flip. */
+  backsRotationDeg?: 0 | 180;
 }
 
 export interface Notebook {
@@ -82,15 +88,17 @@ export interface Notebook {
   scaling: Scaling;
   items: BookItem[];
   groups: Group[];
+  /** Legacy per-notebook selection, retained only for persistence migration. */
   printerProfileId?: string;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface PersistedState {
   schemaVersion: number;
   notebooks: Notebook[];
   printerProfiles: PrinterProfile[];
+  activePrinterProfileId?: string;
   sources: Record<string, Source>;
 }
 

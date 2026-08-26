@@ -4,10 +4,13 @@ import { CALIBRATION_OUTCOMES, generateCalibrationSheet } from "../core/calibrat
 import {
   activeNotebook,
   activePrinterProfile,
+  activePrinterProfileId,
   createPrinterProfile,
   deletePrinterProfile,
   printerProfiles,
-  setNotebookPrinterProfile,
+  setActivePrinterProfile,
+  setPrinterProfileBacksOrder,
+  setPrinterProfileBacksRotation,
 } from "../store";
 
 function downloadCalibrationSheet(bytes: Uint8Array): void {
@@ -35,7 +38,7 @@ export function PrinterProfilePanel(): JSX.Element | null {
   const onPickOutcome = (outcome: (typeof CALIBRATION_OUTCOMES)[number]) => {
     const name = newProfileName.trim() || "My printer";
     const profile = createPrinterProfile(name, outcome.outputFacing, outcome.reloadFlip);
-    setNotebookPrinterProfile(profile.id);
+    setActivePrinterProfile(profile.id);
     setWizardOpen(false);
     setNewProfileName("");
   };
@@ -48,8 +51,8 @@ export function PrinterProfilePanel(): JSX.Element | null {
         <label class="settings-row">
           Profile
           <select
-            value={nb.printerProfileId ?? ""}
-            onChange={(e) => setNotebookPrinterProfile((e.target as HTMLSelectElement).value || undefined)}
+            value={activePrinterProfileId.value ?? ""}
+            onChange={(e) => setActivePrinterProfile((e.target as HTMLSelectElement).value || undefined)}
           >
             <option value="">Not calibrated</option>
             {printerProfiles.value.map((p) => (
@@ -62,12 +65,48 @@ export function PrinterProfilePanel(): JSX.Element | null {
       )}
 
       {activePrinterProfile.value && (
-        <button
-          class="link-button"
-          onClick={() => deletePrinterProfile(activePrinterProfile.value!.id)}
-        >
-          Delete this profile
-        </button>
+        <>
+          <label class="settings-row">
+            Backs sheet order
+            <select
+              value={activePrinterProfile.value.backsOrder ?? "reversed"}
+              onChange={(e) =>
+                setPrinterProfileBacksOrder(
+                  activePrinterProfile.value!.id,
+                  (e.target as HTMLSelectElement).value as "forward" | "reversed",
+                )
+              }
+            >
+              <option value="forward">Same as Fronts</option>
+              <option value="reversed">Reversed</option>
+            </select>
+          </label>
+          <div class="settings-hint">Reverse this if the orientation is right but sheets pair with the wrong backs.</div>
+          <label class="settings-row">
+            Backs orientation
+            <select
+              value={activePrinterProfile.value.backsRotationDeg ?? 180}
+              onChange={(e) =>
+                setPrinterProfileBacksRotation(
+                  activePrinterProfile.value!.id,
+                  Number((e.target as HTMLSelectElement).value) as 0 | 180,
+                )
+              }
+            >
+              <option value={0}>Same as Fronts</option>
+              <option value={180}>Rotate 180°</option>
+            </select>
+          </label>
+          <div class="settings-hint">
+            If page 2 is replaced by the last inside page upside down, choose Same as Fronts.
+          </div>
+          <button
+            class="link-button"
+            onClick={() => deletePrinterProfile(activePrinterProfile.value!.id)}
+          >
+            Delete this profile
+          </button>
+        </>
       )}
 
       {!activePrinterProfile.value && (
