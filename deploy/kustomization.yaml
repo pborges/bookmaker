@@ -8,4 +8,4 @@ resources:
 
 images:
   - name: ghcr.io/pborges/bookmaker
-    newTag: "0.1.8"
+    newTag: "0.1.9"
