@@ -30,6 +30,56 @@ export interface SewGuidePassConfig {
   side: "front" | "back";
 }
 
+/**
+ * The imposition math is easiest to reason about as a two-up landscape
+ * sheet, but printers fed short-edge-first need a genuinely portrait PDF
+ * page. Wrap each completed landscape sheet in a portrait MediaBox and turn
+ * the artwork inside it. This avoids relying on print-dialog orientation or
+ * a PDF /Rotate hint, both of which some drivers ignore.
+ */
+export function computePortraitSheetPlacement(
+  sheetWidthPt: number,
+  sheetHeightPt: number,
+  rotationDeg: 0 | 180,
+): { pageWidthPt: number; pageHeightPt: number; x: number; y: number; rotateDeg: 90 | 270 } {
+  return rotationDeg === 0
+    ? {
+        pageWidthPt: sheetHeightPt,
+        pageHeightPt: sheetWidthPt,
+        x: 0,
+        y: sheetWidthPt,
+        rotateDeg: 270,
+      }
+    : {
+        pageWidthPt: sheetHeightPt,
+        pageHeightPt: sheetWidthPt,
+        x: sheetHeightPt,
+        y: 0,
+        rotateDeg: 90,
+      };
+}
+
+async function saveAsPortraitSheets(layout: PDFDocument, rotationDeg: 0 | 180): Promise<Uint8Array> {
+  // Reopen the completed layout before embedding it. Embedding pages directly
+  // from a still-mutating document can leave cross-document XObject references
+  // that pdf-lib accepts but strict PDF renderers reject.
+  const source = await PDFDocument.load(await layout.save());
+  const output = await PDFDocument.create();
+  const embeddedSheets = await output.embedPages(source.getPages());
+
+  for (const sheet of embeddedSheets) {
+    const placement = computePortraitSheetPlacement(sheet.width, sheet.height, rotationDeg);
+    const page = output.addPage([placement.pageWidthPt, placement.pageHeightPt]);
+    page.drawPage(sheet, {
+      x: placement.x,
+      y: placement.y,
+      rotate: degrees(placement.rotateDeg),
+    });
+  }
+
+  return output.save();
+}
+
 export async function buildPass(
   sheets: Sheet[],
   sheetSides: (sheet: Sheet) => { left: number; right: number },
@@ -49,6 +99,10 @@ export async function buildPass(
     const sheet = sheets[sheetIndex];
     const sides = sheetSides(sheet);
     const outPage = out.addPage([mmToPt(geo.sheetSize.widthMm), mmToPt(geo.sheetSize.heightMm)]);
+    // pdf-lib cannot embed a page with no /Contents entry. Give even a fully
+    // blank imposed sheet an invisible content stream so it can be wrapped
+    // in the final portrait page below.
+    outPage.drawRectangle({ x: 0, y: 0, width: 0.01, height: 0.01, opacity: 0 });
 
     for (const [side, pageNumber] of [
       ["left", sides.left],
@@ -75,13 +129,9 @@ export async function buildPass(
     if (sewGuideConfig && showsSewGuide(sewGuideConfig.sewGuide, sheet, sewGuideConfig.side, sheets.length)) {
       drawSewGuide(outPage, geo.foldX, geo.left.y, pageSize.heightMm, sewGuideConfig.sewGuide.stations);
     }
-
-    if (rotationDeg === 180) {
-      outPage.setRotation(degrees(180));
-    }
   }
 
-  return out.save();
+  return saveAsPortraitSheets(out, rotationDeg);
 }
 
 /**

@@ -3,32 +3,44 @@
 // would, print side two, then compare which of four outcomes you got.
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { computeSheetGeometry } from "./geometry";
+import type { Media, Size } from "./model";
 
-const LETTER_WIDTH_PT = 612;
-const LETTER_HEIGHT_PT = 792;
+const PT_PER_MM = 72 / 25.4;
+const mmToPt = (mm: number) => mm * PT_PER_MM;
 
-export async function generateCalibrationSheet(): Promise<Uint8Array> {
+export async function generateCalibrationSheet(media: Media, pageSize: Size): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.HelveticaBold);
-  const page = doc.addPage([LETTER_WIDTH_PT, LETTER_HEIGHT_PT]);
+  const sheet = computeSheetGeometry(media, pageSize, 0).sheetSize;
+  // The physical sheet is imposed landscape, then fed short-edge-first. Use
+  // a true portrait MediaBox so calibration follows the same printer path as
+  // the exported Fronts and Backs PDFs.
+  const pageWidthPt = mmToPt(sheet.heightMm);
+  const pageHeightPt = mmToPt(sheet.widthMm);
+  const page = doc.addPage([pageWidthPt, pageHeightPt]);
+  const frontSize = 48;
+  const topLabelSize = 24;
+  const frontWidth = font.widthOfTextAtSize("FRONT", frontSize);
+  const topLabelWidth = font.widthOfTextAtSize("TOP EDGE ^", topLabelSize);
 
   page.drawText("FRONT", {
-    x: LETTER_WIDTH_PT / 2 - 70,
-    y: LETTER_HEIGHT_PT / 2,
-    size: 48,
+    x: (pageWidthPt - frontWidth) / 2,
+    y: pageHeightPt / 2,
+    size: frontSize,
     font,
     color: rgb(0, 0, 0),
   });
   page.drawText("TOP EDGE ^", {
-    x: LETTER_WIDTH_PT / 2 - 90,
-    y: LETTER_HEIGHT_PT - 60,
-    size: 24,
+    x: (pageWidthPt - topLabelWidth) / 2,
+    y: pageHeightPt - 60,
+    size: topLabelSize,
     font,
     color: rgb(0, 0, 0),
   });
   page.drawText("^", {
-    x: LETTER_WIDTH_PT / 2 - 6,
-    y: LETTER_HEIGHT_PT - 90,
+    x: pageWidthPt / 2 - 6,
+    y: pageHeightPt - 90,
     size: 32,
     font,
     color: rgb(0, 0, 0),

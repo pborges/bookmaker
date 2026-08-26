@@ -28,7 +28,7 @@ export function PrinterProfilePanel(): JSX.Element | null {
   if (!nb) return null;
 
   const onDownloadSheet = async () => {
-    const bytes = await generateCalibrationSheet();
+    const bytes = await generateCalibrationSheet(nb.media, nb.pageSize);
     downloadCalibrationSheet(bytes);
   };
 
@@ -87,7 +87,8 @@ export function PrinterProfilePanel(): JSX.Element | null {
           </label>
           <ol class="calibration-steps">
             <li>
-              <button onClick={onDownloadSheet}>Download test sheet</button> and print it.
+              <button onClick={onDownloadSheet}>Download test sheet</button> and print it at Actual size on the same
+              paper, loaded the same way, as the booklet.
             </li>
             <li>Reload the sheet exactly how you'd reload a real stack, then print any single page to its back.</li>
             <li>Compare side two to side one and pick what happened:</li>

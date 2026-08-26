@@ -1,9 +1,15 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { buildPass, computePagePlacement, exportCover, type PlacedPage } from "./export";
+import {
+  buildPass,
+  computePagePlacement,
+  computePortraitSheetPlacement,
+  exportCover,
+  type PlacedPage,
+} from "./export";
 import { computeSheetGeometry } from "./geometry";
 import { impose } from "./imposition";
-import { EMPTY_COVER_PAGES } from "./model";
+import { EMPTY_COVER_PAGES, PAGE_SIZE_PRESETS } from "./model";
 
 async function makeSourcePdf(pageCount: number): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -153,7 +159,7 @@ describe("computePagePlacement", () => {
 });
 
 describe("buildPass with a rotated page", () => {
-  it("places a 90°-rotated landscape source page without throwing, at the expected sheet size", async () => {
+  it("places a 90°-rotated source page on a portrait-marked pre-cut sheet", async () => {
     const sourceBytes = await makeSourcePdf(1);
     const sheets = impose(4);
 
@@ -171,8 +177,64 @@ describe("buildPass with a rotated page", () => {
     const out = await PDFDocument.load(bytes);
     expect(out.getPageCount()).toBe(1);
     const [page] = out.getPages();
-    // Sheet is 2x page width by page height, in points.
-    expect(page.getWidth()).toBeCloseTo((fieldNotes.widthMm * 2 * 72) / 25.4, 1);
-    expect(page.getHeight()).toBeCloseTo((fieldNotes.heightMm * 72) / 25.4, 1);
+    // The MediaBox itself is portrait; orientation does not depend on /Rotate.
+    expect(page.getWidth()).toBeCloseTo((fieldNotes.heightMm * 72) / 25.4, 1);
+    expect(page.getHeight()).toBeCloseTo((fieldNotes.widthMm * 2 * 72) / 25.4, 1);
+    expect(page.getRotation().angle).toBe(0);
+  });
+});
+
+describe("buildPass sheet orientation", () => {
+  const sheets = impose(4);
+  const lookup = (): PlacedPage => ({ bookPageNumber: null });
+  const pageSizes = [...Object.entries(PAGE_SIZE_PRESETS), ["custom", { widthMm: 100, heightMm: 150 }]] as const;
+
+  it.each(pageSizes)("exports %s pre-cut sheets with a true portrait MediaBox", async (_, size) => {
+    const bytes = await buildPass(sheets, (sheet) => sheet.front, { mode: "precut" }, size, 3, lookup, 0, [0]);
+    const [page] = (await PDFDocument.load(bytes)).getPages();
+
+    expect(page.getWidth()).toBeCloseTo((size.heightMm * 72) / 25.4, 1);
+    expect(page.getHeight()).toBeCloseTo((size.widthMm * 2 * 72) / 25.4, 1);
+    expect(page.getWidth()).toBeLessThan(page.getHeight());
+    expect(page.getRotation().angle).toBe(0);
+  });
+
+  it("also exports standard stock with a true portrait MediaBox", async () => {
+    const bytes = await buildPass(
+      sheets,
+      (s) => s.front,
+      { mode: "trim", stock: "letter" },
+      fieldNotes,
+      3,
+      lookup,
+      0,
+      [0],
+    );
+    const [page] = (await PDFDocument.load(bytes)).getPages();
+    expect(page.getWidth()).toBeCloseTo((215.9 * 72) / 25.4, 1);
+    expect(page.getHeight()).toBeCloseTo((279.4 * 72) / 25.4, 1);
+    expect(page.getRotation().angle).toBe(0);
+  });
+});
+
+describe("computePortraitSheetPlacement", () => {
+  it("turns a front sheet clockwise into a portrait page", () => {
+    expect(computePortraitSheetPlacement(600, 400, 0)).toEqual({
+      pageWidthPt: 400,
+      pageHeightPt: 600,
+      x: 0,
+      y: 600,
+      rotateDeg: 270,
+    });
+  });
+
+  it("composes the calibrated 180° backs rotation", () => {
+    expect(computePortraitSheetPlacement(600, 400, 180)).toEqual({
+      pageWidthPt: 400,
+      pageHeightPt: 600,
+      x: 400,
+      y: 0,
+      rotateDeg: 90,
+    });
   });
 });
